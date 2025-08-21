@@ -42,7 +42,7 @@ phases:
       - echo Building the Docker image...
       # 解凍処理
       - ZIP="linux_deploy"
-      - unzip -o $ZIP.zip $ZIP/app.jar
+      - unzip -o $ZIP.zip 
       # ビルド
       - docker build -t $IMAGE_REPO_NAME:$LATEST_TAG .
       # タグ付け
