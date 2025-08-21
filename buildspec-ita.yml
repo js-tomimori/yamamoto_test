@@ -7,7 +7,8 @@ env:
     # BuildKitを有効化(キャッシュ)#
     DOCKER_BUILDKIT: "1"
     # コンテナ名
-    CONTAINER_APP_NAME: "sa-container-app"
+    # CONTAINER_APP_NAME: "sa-container-app"
+    CONTAINER_APP_NAME: "app-container"
     CONTAINER_BATCH_NAME: "sa-container-batch"
     CONTAINER_AUTT_NAME: "sa-container-webautt"
     # イメージ定義ファイル名
