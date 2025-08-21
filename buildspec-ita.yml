@@ -1,0 +1,68 @@
+version: 0.2
+
+env:
+  # git認証情報ヘルパーを有効化##
+  git-credential-helper: yes
+  variables:
+    # BuildKitを有効化(キャッシュ)#
+    DOCKER_BUILDKIT: "1"
+    # コンテナ名
+    CONTAINER_APP_NAME: "sa-container-app"
+    CONTAINER_BATCH_NAME: "sa-container-batch"
+    CONTAINER_AUTT_NAME: "sa-container-webautt"
+    # イメージ定義ファイル名
+    IMAGEDEF_APP_FILE_NAME: "imagedef-web.json"
+    IMAGEDEF_BATCH_FILE_NAME: "imagedef-batch.json"
+    IMAGEDEF_AUTT_FILE_NAME: "imagedef-autt.json"
+    # タグ
+    LATEST_TAG: "latest"
+  parameter-store:
+    AWS_ACCOUNT_ID: "account-id"
+
+phases:
+  pre_build:
+    commands:
+      # タイムゾーンをJSTへ変換
+      - export TZ="Asia/Tokyo"
+      # AWSへのログイン
+      - echo Logging in to Amazon ECR...
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+      # タグ情報をSourceから取得
+      # - git switch master
+      # - git fetch --tags
+      # - LATEST_TAG=$(git describe --tags --abbrev=0)
+      # - echo "Latest tag is $LATEST_TAG"
+      # 環境に応じたECRリポジトリ名を設定
+      - PROJECT_NAME=$(echo $CODEBUILD_PROJECT_ARN | awk -F'[:/]' '{print $NF}')
+      - ENV=$(aws codebuild batch-get-projects --name "$PROJECT_NAME" --query "projects[0].tags[?key=='Env'].value" --output text)
+      - IMAGE_REPO_NAME="sa-${ENV}-ecr-app"
+  build:
+    commands:
+      - echo Build started on `date`
+      - echo Building the Docker image...
+      # 解凍処理
+      - ZIP="linux_deploy"
+      - unzip -o $ZIP.zip $ZIP/app.jar
+      # ビルド
+      - docker build -t $IMAGE_REPO_NAME:$LATEST_TAG .
+      # タグ付け
+      # TODO: タグをSourceステージの変数から取得する
+      - docker tag $IMAGE_REPO_NAME:$LATEST_TAG $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$LATEST_TAG
+  post_build:
+    commands:
+      - echo Build completed on `date`
+      - echo Pushing the Docker image...
+      # ECRへプッシュ
+      - docker push $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$LATEST_TAG
+      # イメージ定義ファイル生成
+      - printf '[{"name":"%s","imageUri":"%s"}]' $CONTAINER_APP_NAME $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$LATEST_TAG > $IMAGEDEF_APP_FILE_NAME
+      - printf '[{"name":"%s","imageUri":"%s"}]' $CONTAINER_BATCH_NAME $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$LATEST_TAG > $IMAGEDEF_BATCH_FILE_NAME
+      - printf '[{"name":"%s","imageUri":"%s"}]' $CONTAINER_AUTT_NAME $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$LATEST_TAG > $IMAGEDEF_AUTT_FILE_NAME
+
+# アーティファクト出力
+artifacts:
+  files:
+    - $IMAGEDEF_APP_FILE_NAME
+    - $IMAGEDEF_BATCH_FILE_NAME
+    - $IMAGEDEF_AUTT_FILE_NAME
+  name: build-$(date +%Y-%m-%d_%H%M).zip
