@@ -15,8 +15,7 @@ ENV FSS_EXTERNAL_BASE_URL=${URL}
 ENV FSS_SVC_URL=${URL}
 
 COPY ./app.jar .
-# COPY ./linux_deploy/app.jar .
-# COPY ./linux_deploy/application-prod.yml .
+COPY ./application-prod.yml .
 # COPY ./${SEED_DATA_PATH} .
 
 EXPOSE ${PORT}
